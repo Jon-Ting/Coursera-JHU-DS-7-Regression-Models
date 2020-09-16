@@ -1,0 +1,95 @@
+---
+title: "Motor Trend Cars Miles per Gallon Analysis"
+author: "Jon Ting"
+date: "20/08/2020"
+output: pdf_document
+---
+
+## Executive Summary
+This report investigates the relationship between the type of transmission and miles per gallon (MPG) based on the `mtcars` dataset. A T-test between manual and automatic transmission vehicles shows that vehicles with the former transmission have a 7.245 greater MPG than the latter. Multiple linear regressions revealed that the former contributed less significantly to MPG, only an improvement of 1.81 MPG. The main contribution to the overall vehicle MPG originates from the other variables, including weight, horsepower, and number of cylinders.
+
+## Setup, Load and Preprocess Data
+The data is loaded and preprocessed as below:
+```{r Data preprocess, cache=TRUE}
+# Setup
+knitr::opts_chunk$set(warning=FALSE)
+# Load required libraries
+library(ggplot2)
+# Load data and examine data structure
+data(mtcars)
+# str(mtcars)
+# Convert the categorical variable to appropriate class
+categorical_vars <- c("cyl", "vs", "am", "gear", "carb")
+mtcars[categorical_vars] <- lapply(mtcars[categorical_vars], factor)
+# Rename binary variables
+levels(mtcars$am) <- c("Automatic", "Manual")
+levels(mtcars$vs) <- c("V-shaped", "Straight")
+```
+
+## Exploratory Analysis
+A box plot that compares the MPG of the 2 transmission types indicates that manual transmission vehicle allows longer MPG in general (see **Appendix 1**).
+
+## Regression Analysis
+
+### Full Model
+All variables are included in the first analysis, resulting in the full model. Although about 89% of the MPG variance could be explained, all p-values are greater than 0.05, thus no result is significant. This implies that only the most significant variables should be included.
+```{r Full model, cache=TRUE, echo=FALSE}
+fullModel <- lm(formula=mpg~., data=mtcars)
+```
+
+### Step Model
+The determination of most statistically significant variables is achieved by both forward selection and backward elimination methods by AIC algorithm.
+```{r Step model, cache=TRUE}
+stepModel <- step(fullModel, direction="both", trace=0)
+summary(stepModel)
+```
+
+The resulting model includes cylinders, horsepower, and weight as confounder variables, and transmission being the response variable. It explains about 87% of the variance in MPG. The p-values are statistically significantly for all 3 confounder variables at the significance level of 0.05.
+
+The coefficients indicate that holding the other variables constant, the increment in the number of cylinders from 4 to 6 leads to lower MPG by 3.03, while further increment to 8 cylinders reduce the MPG by 2.16. Every unit increase in the horsepower corresponds to reduction in MPG by 0.0321 while every 1000 lbs increase in the vehicle weight decreases the MPG by 2.5 if other variables are held constant. A manual transmission corresponds to 1.81 higher MPG compared to automatic transmission.
+
+## Statistical Inference
+The 95% confidence interval of each coefficient is computed as below:
+```{r Confidence intervals, cache=TRUE}
+confint(stepModel)
+```
+A Welch 2 sample T-test on transmission type and MPG indeed results in a p-value much smaller than 0.05 and a confidence interval that does not include 0, giving evidence to reject the null hypothesis that transmission type has no impact on MPG :
+```{r T-test, cache=TRUE}
+t.test(formula=mpg~am, data=mtcars)
+```
+
+## Residuals and Diagnostics
+The residual plots (see **Appendix 2**) leads to the following conclusions:
+
+- The assumption of independence is supported by the randomness in the residuals vs fitted plot
+- The normality assumption is supported by the rather straight diagonal fit of the residuals in the normal Q-Q plot.
+- The constant variance assumption is supported by the random distribution in the scale-location plot.
+- No outlier is found as all points fall within the 0.5 boundaries in the residuals vs leverage plot.
+
+Some regression diagnostics of the model are computed to find the leverage points:
+```{r Diagnostics, cache=TRUE}
+leverage <- hatvalues(stepModel)
+tail(sort(leverage), 3)
+
+influential <- dfbetas(stepModel)
+tail(sort(influential[, 6]), 3)
+```
+The top three points in each case of influence measures are found in the residual plots, thus indicating that the analysis was correct.
+
+## Conclusion
+The inclusion of confounding variables like weight, horsepower, and number of cylinders in the analysis revealed that the difference in MPG based on transmission type is not found to be significant. The difference could largely be explained by the other variables instead. Thus the question of whether an automatic or manual transmission is better for MPG could not be answered.
+
+Based on the best fit model, it could be said that holding the other confounder variables constant, a manual transmission vehicle could travel anywhere between 4.7 MPG longer or 1.1 MPG shorter than its counterpart. Other variables would be much better variables to be tuned for obtaining optimal MPG.
+
+## Appendix
+1. Boxplot between transmission type and MPG
+```{r Boxplot, fig.height=3, fig.width=5, cache=TRUE}
+boxplot(formula=mpg~am, data=mtcars, xlab="Transmission Type", ylab="MPG", 
+        main="MPG by Transmission Type")
+```
+
+2. Residual plot
+```{r Residual plot, fig.height=5, cache=TRUE}
+par(mfrow = c(2, 2))
+plot(stepModel)
+```
